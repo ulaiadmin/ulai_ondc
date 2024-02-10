@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BPP Provider Details</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        #loader {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1001; /* Ensure the loader is above the modal */
+        }
+
+        .loader-spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #3498db;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .provider-container {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 20px;
+        }
+
+        .item-container {
+            border: 1px solid #eee;
+            padding: 10px;
+            margin-top: 10px;
+        }
+
+        .item-quantity {
+            display: flex;
+            align-items: center;
+        }
+
+        .quantity-btn {
+            cursor: pointer;
+            margin: 0 5px;
+        }
+
+        /* Cart styles and modal */
+        #cartContainer {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+        }
+
+        #cartIcon {
+            cursor: pointer;
+        }
+
+        #cartModal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+
+        #overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>BPP Provider Details</h1>
+
+    <button onclick="closePage()">Close</button>
+
+    <!-- Display BPP provider information -->
+    <div class="provider-container">
+        <h2>BPP Provider Information</h2>
+        <% if (matchingData && matchingData.message && matchingData.message.catalog && matchingData.message.catalog["bpp/descriptor"]) { %>
+            <p>Name: <%= matchingData.message.catalog["bpp/descriptor"].name %></p>
+            <p>Description: <%= matchingData.message.catalog["bpp/descriptor"].short_desc %></p>
+            <img src="<%= matchingData.message.catalog["bpp/descriptor"].symbol %>" alt="BPP Provider Image"
+                style="max-width: 200px; max-height: 200px;">
+        <% } else { %>
+            <p>No BPP Provider Information available</p>
+        <% } %>
+    </div>
+
+    <!-- Display BPP provider items details -->
+    <div id="itemsContainer">
+        <% if (matchingData && matchingData.message && matchingData.message.catalog && matchingData.message.catalog["bpp/providers"]) { %>
+            <% const firstProvider = matchingData.message.catalog["bpp/providers"][0]; %>
+            <% firstProvider.items.forEach((item, index) => { %>
+                <div class="provider-container">
+                    <h2>Provider: <%= firstProvider.descriptor.name %></h2>
+                    <p>Description: <%= firstProvider.descriptor.short_desc %></p>
+                    <img src="<%= firstProvider.descriptor.symbol %>" alt="Provider Image"
+                        style="max-width: 150px; max-height: 150px;">
+
+                    <!-- Display items for each provider -->
+                    <div class="item-container">
+                        <p>Item Name: <%= item.descriptor.name %></p>
+                        <p>Description: <%= item.descriptor.short_desc %></p>
+                        <img src="<%= item.descriptor.symbol %>" alt="Item Image"
+                            style="max-width: 100px; max-height: 100px;">
+
+                        <!-- Quantity and Add to Cart functionality -->
+                        <div class="item-quantity">
+                            <button class="quantity-btn" onclick="decrementQuantity('<%= index %>')">-</button>
+                            <span id="quantity<%= index %>">1</span>
+                            <button class="quantity-btn" onclick="incrementQuantity('<%= index %>')">+</button>
+                            <button onclick="addToCart('<%= item.descriptor.name %>', '<%= item.id %>', '<%= index %>')">Add to Cart</button>
+                        </div>
+                    </div>
+                </div>
+            <% }); %>
+        <% } else { %>
+            <p>No BPP Providers available</p>
+        <% } %>
+    </div>
+
+    <!-- Cart icon and total quantities -->
+    <div id="cartContainer">
+        <span id="cartIcon" onclick="showCartDetails()">🛒</span>
+        <span id="totalQuantities">0</span>
+    </div>
+
+    <!-- Cart modal and overlay -->
+    <div id="overlay"></div>
+    <div id="cartModal">
+        <h2>Cart Details</h2>
+        <div id="cartItems"></div>
+        <button onclick="closeCartModal()">Confirm</button>
+    </div>
+
+    <div id="loader">
+        <div class="loader-spinner"></div>
+    </div>
+
+    <% if (matchingData && matchingData.message && matchingData.message.catalog && matchingData.message.catalog["bpp/providers"]) { %>
+        <script>
+            
+
+            function showLoader() {
+            const loader = document.getElementById('loader');
+            if (loader) {
+                    loader.style.display = 'block';
+                }
+            }
+
+            function hideLoader() {
+                const loader = document.getElementById('loader');
+            if (loader) {
+                    loader.style.display = 'none';
+                }
+            }
+
+
+
+
+            const itemQuantities = Array.from({ length: '<%= matchingData.message.catalog["bpp/providers"][0].items.length || 0 %>'}, () => 1);
+            var totalQuantity = 0;
+
+            const cartItems = [];
+
+            function incrementQuantity(index) {
+                itemQuantities[index]++;
+                const element = document.getElementById(`quantity${index}`);
+                if (element) {
+                    element.textContent = itemQuantities[index].toString();
+                     
+                }
+                //updateQuantityDisplay();
+            }
+
+            function decrementQuantity(index) {
+                if (itemQuantities[index] > 1) {
+                    itemQuantities[index]--;
+                    const element = document.getElementById(`quantity${index}`);
+                    if (element) {
+                        element.textContent = itemQuantities[index].toString();
+                    }
+                    //updateQuantityDisplay();
+                }
+            }
+
+            function updateQuantityDisplay(index) {
+                const totalQuantitiesElement = document.getElementById('totalQuantities');
+                if (totalQuantitiesElement) {
+                    totalQuantity +=  itemQuantities[index];
+                    totalQuantitiesElement.textContent = totalQuantity.toString();
+                }
+            }
+
+            function addToCart(itemName, itemId, index) {
+                updateQuantityDisplay(index);
+
+                const existingItemIndex = cartItems.findIndex(item => item.itemId === itemId);
+
+                if (existingItemIndex !== -1) {
+                    // If the item exists, update its quantity
+                    cartItems[existingItemIndex].quantity += itemQuantities[index];
+                } else {
+                    // If the item doesn't exist, add it to the cartItems array
+                    cartItems.push({
+                        itemId: itemId,
+                        quantity: itemQuantities[index],
+                        itemName: itemName
+                    });
+                }
+
+                const cartItemsContainer = document.getElementById('cartItems');
+                if (cartItemsContainer) {
+                    cartItemsContainer.innerHTML = '';
+                    cartItems.forEach(item => {
+                        cartItemsContainer.innerHTML += `<p>${item.quantity} x ${item.itemName}</p>`;
+                    });
+                }
+            }
+
+            function showCartDetails() {
+                const cartModal = document.getElementById('cartModal');
+                const overlay = document.getElementById('overlay');
+
+                // Show the cart modal and overlay
+                cartModal.style.display = 'block';
+                overlay.style.display = 'block';
+            }
+
+            function closeCartModal() {
+                const cartModal = document.getElementById('cartModal');
+                const overlay = document.getElementById('overlay');
+
+                const updatedItemList = [];
+
+                // Iterate through the cartItems array
+                cartItems.forEach(item => {
+                    // Add the item details to the updatedItemList array
+                    updatedItemList.push({
+                        id: item.itemId,
+                        quantity: {
+                            count: item.quantity
+                        }
+                    });
+                });
+
+                // Function to generate UUID v4
+            function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = (Math.random() * 16) | 0,
+                    v = c === 'x' ? r : (r & 0x3) | 0x8;
+                return v.toString(16);
+            });
+            }
+
+            // Generate a new UUID
+            var messageId = generateUUID();
+
+            // Create a new Date object
+            var currentDate = new Date();
+
+            // Format the date as a timestamp
+            var timestamp = currentDate.toISOString();
+            
+
+                var body = {}; //select body
+
+                //alert(JSON.stringify(body)); 
+                cartModal.style.display = 'none';
+                overlay.style.display = 'none';
+
+                // joinRoom('<%= matchingData.context.message_id%>');
+                // showLoader();
+                
+
+                fetch('select url', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(body),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('API Response:', data);
+                    //alert(JSON.stringify(body));
+                    //hideLoader(); // Hide loader after API call is complete
+                })
+                .catch(error => {
+                    console.error('API Error:', error);
+                    hideLoader(); // Hide loader even if there's an error
+                });
+
+                // Hide the cart modal and overlay
+                
+            }
+
+            function closePage() {
+                window.close();
+                if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+                    window.open('', '_blank');
+                } else {
+                    // 
+                    window.open('', '_blank');
+                }
+            }
+        </script>
+    <% } %>
+</body>
+
+</html>
